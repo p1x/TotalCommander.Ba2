@@ -20,6 +20,7 @@
         <CustomToolNamespace>YourNamespace</CustomToolNamespace>
         <CustomToolOutput>obj\Debug\net8.0\GeneratedCode.cs</CustomToolOutput>
       </None>
+      <None Remove="P1X.TotalCommander.Ba2.csproj.DotSettings" />
     </ItemGroup>
 
     <ItemGroup>

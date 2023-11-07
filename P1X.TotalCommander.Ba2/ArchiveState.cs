@@ -3,12 +3,13 @@ using SharpBSABA2;
 
 namespace P1X.TotalCommander.Ba2;
 
-public class ArchiveState(Archive archive)
+public class ArchiveState(Archive archive, bool isExtracting)
 {
     public Archive Archive { get; } = archive;
-    public int NextFileIndex { get; set; }
     public int CurrentFileIndex { get; set; } = -1;
+    
+    public bool IsExtracting { get; } = isExtracting;
 
-    public static ArchiveState RestoreState(IntPtr ptr, out GCHandle gcHandle) => 
-        (ArchiveState?) (gcHandle = GCHandle.FromIntPtr(ptr)).Target ?? throw new NullReferenceException("(ArchiveState?) handle.Target");
+    public static ArchiveState FromPtr(IntPtr ptr, out GCHandle gcHandle) => (ArchiveState?) (gcHandle = GCHandle.FromIntPtr(ptr)).Target ?? throw new NullReferenceException("(ArchiveState?) handle.Target");
+    public IntPtr ToPtr(out GCHandle handle) => GCHandle.ToIntPtr(handle = GCHandle.Alloc(this));
 }

@@ -21,16 +21,14 @@ public class ArchiveManager(ILogger<ArchiveManager> logger)
             _                                                      => null
         };
 
-        if (archive != null)
-        {
-            logger.LogDebug("Archive of type {Type} opened", archive.Type.ToString());
-            return new ArchiveState(archive, isExtracting);
-        }
-        else
+        if (archive == null)
         {
             logger.LogDebug("Failed to open archive");
             return null;
         }
+
+        logger.LogDebug("Archive of type {Type} opened", archive.Type.ToString());
+        return new ArchiveState(archive, isExtracting);
     }
     
     public int ReadHeader(ReadHeaderData readHeaderData, out HeaderData data)

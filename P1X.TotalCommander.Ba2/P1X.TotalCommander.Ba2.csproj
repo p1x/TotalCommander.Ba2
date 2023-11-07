@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PublishAot>true</PublishAot>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <None Update="WcxHead\wcxhead.h">
+        <Generator>Swig</Generator>
+        <DependentUpon>wcxhead.h</DependentUpon>
+        <CustomToolNamespace>YourNamespace</CustomToolNamespace>
+        <CustomToolOutput>obj\Debug\net8.0\GeneratedCode.cs</CustomToolOutput>
+      </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="JetBrains.Annotations" Version="2023.3.0-eap4" />
+      <PackageReference Include="Sharp.BSA.BA2" Version="1.17.0" />
+    </ItemGroup>
+
+    <!--<Target Name="Swig">
+        <PropertyGroup>
+            <SwigExe>$(NuGetPackageRoot)swigwintools\4.0.0\tools\swigwin-4.0.0\swig.exe</SwigExe>
+            <OutDir>$(SolutionDir)P1X.TotalCommander.Ba2\Generated\</OutDir>
+            <LogFilePath>$(SolutionDir)swig.log</LogFilePath>
+            <GeneratedDir>$([System.IO.Path]::GetDirectoryName('$(File)'))\Generated\</GeneratedDir>
+        </PropertyGroup>
+        <ItemGroup>
+            &lt;!&ndash; Define the files you want to copy &ndash;&gt;
+            <FilesToCopy Include="$(NuGetPackageRoot)swigwintools\**\*.exe" />
+
+            &lt;!&ndash; Define the destination folder (the 'bin' directory) &ndash;&gt;
+            <DestinationFolder Include="$(SolutionDir)packages\swigwintools\%(RecursiveDir)" />
+        </ItemGroup>
+
+        <Exec Command="$(SwigExe) -csharp -namespace P1X.TotalCommander.Ba2 -outdir $(GeneratedDir) $(File)"
+              ConsoleToMSBuild="true"
+              LogStandardErrorAsError="true"
+              WorkingDirectory="$(ProjectDir)"
+              IgnoreExitCode="false">
+            <Output TaskParameter="ConsoleOutput" PropertyName="OutputText" />
+        </Exec>
+
+        <Message Text="SWIG Output: $(OutputText)" Importance="High" />
+        <WriteLinesToFile File="$(LogFilePath)" Lines="$(OutputText)" Overwrite="true" />
+    </Target>
+    
+    <Target Name="RunSwigOnBuild" BeforeTargets="BeforeBuild" >
+        
+    </Target>-->
+    
+</Project>

@@ -1,6 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using SharpBSABA2;
+using Karambolo.Extensions.Logging.File;
+using Microsoft.Extensions.Logging;
 
 namespace P1X.TotalCommander.Ba2;
 
@@ -8,14 +9,35 @@ public static class WcxApi
 {
 
     private static readonly ArchiveManager ArchiveManager;
-    
+    private static readonly ILogger Logger;
+
     static WcxApi()
     {
         ArchiveManager = new ArchiveManager();
+	    
+        var loggerFactory = LoggerFactory.Create(builder =>
+        {
+	        builder.ClearProviders();
+	        builder.SetMinimumLevel(LogLevel.Trace);
+	        builder.AddFile(options =>
+	        {
+		        options.RootPath = AppContext.BaseDirectory;
+		        options.IncludeScopes = true;
+		        options.Files = new[]
+		        {
+			        new LogFileOptions
+			        {
+				        Path = "TotalCommander.Ba2-<date>.log",
+			        }
+		        };
+	        });
+        });
+        
+        LogManager.SetLoggerFactory(loggerFactory, "Global");
+        
+        Logger = LogManager.GetLogger(nameof(WcxApi));
     }
     
-    // HANDLE __stdcall OpenArchive (tOpenArchiveData *ArchiveData);
-
     /// <summary>
     /// OpenArchive should perform all necessary operations when an archive is to be opened.
     /// <code>__stdcall HANDLE STDCALL OpenArchive(tOpenArchiveData *ArchiveData);</code>
@@ -34,51 +56,73 @@ public static class WcxApi
     [UnmanagedCallersOnly(EntryPoint = "OpenArchive", CallConvs = new[] { typeof(CallConvStdcall) } )]
     public static unsafe IntPtr OpenArchive(tOpenArchiveData *archiveData)
     {
-        try
-        {
-            var pathPtr = new IntPtr(archiveData->ArcName);
-            var path = Marshal.PtrToStringAnsi(pathPtr);
-            
-            var archive = !string.IsNullOrEmpty(path) ? ArchiveManager.Open(path) : null;
-            if (archive == null)
-            {
-                archiveData->OpenResult = WcxHead.Errors.E_NOT_SUPPORTED;
-                return IntPtr.Zero;
-            }
-            
-            var handle = GCHandle.Alloc(archive);
-            var pinnedObject = GCHandle.ToIntPtr(handle);
-            
-            //File.WriteAllText("log.txt", "");
-            
-            return pinnedObject;
-        }
-        catch
-        {
-            archiveData->OpenResult = WcxHead.Errors.E_BAD_DATA;
-            return IntPtr.Zero;
-        }
+	    try
+	    {
+		    var pathPtr = new IntPtr(archiveData->ArcName);
+		    var path = Marshal.PtrToStringAnsi(pathPtr);
+		    Logger.LogTrace("Opening archive: Name = {FileName}", path);
+		    
+		    var archive = !string.IsNullOrEmpty(path) ? ArchiveManager.Open(path) : null;
+		    if (archive == null)
+		    {
+			    Logger.LogError("Opening archive, format not supported: Name = {FileName}", path);
+			    archiveData->OpenResult = WcxHead.Errors.E_NOT_SUPPORTED;
+			    return IntPtr.Zero;
+		    }
+
+		    var handle = GCHandle.Alloc(archive);
+		    var pinnedObject = GCHandle.ToIntPtr(handle);
+
+		    Logger.LogTrace("Opening archive, completed: Name = {FileName}", path);
+		    
+		    return pinnedObject;
+	    }
+	    catch (Exception e)
+	    {
+		    Logger.LogCritical(e, nameof(OpenArchive));
+		    archiveData->OpenResult = WcxHead.Errors.E_BAD_DATA;
+		    return IntPtr.Zero;
+	    }
+	    catch
+	    {
+		    Logger.LogCritical(nameof(OpenArchive) + ": Unknown exception");
+		    archiveData->OpenResult = WcxHead.Errors.E_BAD_DATA;
+		    return IntPtr.Zero;
+	    }
     }
 
     // int __stdcall ReadHeader (HANDLE hArcData, tHeaderData *HeaderData);
     [UnmanagedCallersOnly(EntryPoint = "ReadHeader", CallConvs = new[] { typeof(CallConvStdcall) } )]
     public static unsafe int ReadHeader(IntPtr hArcData, tHeaderData *headerData)
     {
-        try
-        {
-            var state = ArchiveState.RestoreState(hArcData, out _); 
-            var hasMoreFiles = ArchiveManager.ReadHeader(state, out var data);
-            if (!hasMoreFiles)
-                return WcxHead.Errors.E_END_ARCHIVE;
+	    try
+	    {
+		    var state = ArchiveState.RestoreState(hArcData, out _);
+		    Logger.BeginScope("Archive state: Name = {FileName}, FileIndex = {Index}", state.Archive.FileName, state.CurrentFileIndex);
 
-            data.FillNative(headerData);
-        
-            return 0;
-        }
-        catch
-        {
-            return WcxHead.Errors.E_BAD_DATA;
-        }
+		    
+		    var hasMoreFiles = ArchiveManager.ReadHeader(state, out var data);
+		    if (!hasMoreFiles)
+		    {
+			    Logger.LogTrace("Reading header, no more files");
+			    return WcxHead.Errors.E_END_ARCHIVE;
+		    }
+
+		    data.FillNative(headerData);
+		    Logger.LogTrace("Reading header, completed: Name = {FileName}, Time = {FileTime}, Packed = {PackedSize}, Unpacked = {UnpackedSize}", data.FileName, data.FileTime, data.PackedSize, data.UnpackedSize);
+
+		    return 0;
+	    }
+	    catch (Exception e)
+	    {
+		    Logger.LogCritical(e, nameof(ReadHeader));
+		    return WcxHead.Errors.E_BAD_DATA;
+	    }
+	    catch
+	    {
+		    Logger.LogCritical(nameof(ReadHeader) + ": Unknown exception");
+		    return WcxHead.Errors.E_BAD_DATA;
+	    }
     }
     
     // int __stdcall ProcessFile (HANDLE hArcData, int Operation, char *DestPath, char *DestName);     
@@ -86,58 +130,72 @@ public static class WcxApi
     public static int ProcessFile(IntPtr hArcData, int operation, IntPtr destPath, IntPtr destName)
     {
 	    if (operation == WcxHead.PK_OM_LIST)
+	    {
+		    Logger.LogTrace("Processing file, list");
 		    return 0;
+	    }
 
 	    try
 	    {
 		    if (operation == WcxHead.PK_SKIP)
+		    {
+			    Logger.LogTrace("Processing file, skip");
 			    return 0;
+		    }
 
 		    var state = ArchiveState.RestoreState(hArcData, out _);
+
+		    Logger.BeginScope("Archive state: Name = {FileName}, FileIndex = {Index}", state.Archive.FileName, state.CurrentFileIndex);
+		    
 		    if (operation == WcxHead.PK_TEST)
+		    {
+			    Logger.LogWarning("Processing file, test. Not supported");
 			    return WcxHead.Errors.E_NOT_SUPPORTED;
+		    }
 
 		    if (operation != WcxHead.PK_EXTRACT)
+		    {
+			    Logger.LogError("operation != WcxHead.PK_EXTRACT");
 			    return WcxHead.Errors.E_NOT_SUPPORTED;
-		    
+		    }
+
 		    var destPathStr = destPath == IntPtr.Zero ? null : Marshal.PtrToStringAnsi(destPath);
 		    var destNameStr = Marshal.PtrToStringAnsi(destName);
 
 		    if (destNameStr == null)
+		    {
+			    Logger.LogError("destNameStr == null");
 			    return WcxHead.Errors.E_NOT_SUPPORTED;
+		    }
 
-		    var entry = destPathStr == null 
-			    ? state.Archive.Files.Find(x => destNameStr.EndsWith(x.FileName, StringComparison.InvariantCultureIgnoreCase))
-			    : state.Archive.Files.Find(x => string.Equals(destNameStr, x.FileName, StringComparison.InvariantCultureIgnoreCase));
-
-		    var logPath = Path.Combine(Path.GetDirectoryName(state.Archive.FullPath), "log.txt");
-		    
-		    File.AppendAllText(logPath, "Entry:" + Environment.NewLine);
-		    
-		    File.AppendAllText(logPath,  "destName" + destNameStr + Environment.NewLine);
-		    File.AppendAllText(logPath, "destPath" + destPathStr + Environment.NewLine);
-		    
+		    var entry = state.Archive.Files[state.CurrentFileIndex];
 		    var destPathFull = destPathStr == null ? destNameStr : Path.Combine(destPathStr, destNameStr);
+		    Logger.LogTrace("Processing file, destination parsed: DestName = {DestName}, DestPath = {DestPath}, DestPathFull = {PathFull}", destNameStr, destPathStr, destPathFull);
 
-		    File.AppendAllText(logPath, "destPathFull" + destPathFull + Environment.NewLine);
-		    
 		    if (entry == null)
+		    {
+			    Logger.LogError("entry = null");
 			    return WcxHead.Errors.E_BAD_DATA;
-		    
-		    File.AppendAllText(logPath, "FileName = " + entry.FileName  + Environment.NewLine);
-		    File.AppendAllText(logPath, "Folder = " + entry.Folder  + Environment.NewLine);
-		    File.AppendAllText(logPath, "FullPath = " + entry.FullPath  + Environment.NewLine);
-		    File.AppendAllText(logPath, "FullPathOriginal = " + entry.FullPathOriginal  + Environment.NewLine);
-		    File.AppendAllText(logPath, "LowerPath = " + entry.LowerPath  + Environment.NewLine);
+		    }
+
+		    Logger.LogTrace("Processing file, entry loaded: FileName = {FileName}, Folder = {Folder}, FullPath = {FullPath}, FullPathOriginal = {FullPathOriginal}, LowerPath = {LowerPath}", entry.FileName, entry.Folder, entry.FullPath, entry.FullPathOriginal, entry.LowerPath);
 
 		    var dir = Path.GetDirectoryName(destPathFull);
 		    var fileName = Path.GetFileName(destPathFull);
 		    entry.Extract(dir, false, fileName);
+
+		    Logger.LogTrace("Processing file, extracted: Dir = {Directory}, File = {FileName}", dir, fileName);
 		    
 		    return 0;
 	    }
+	    catch (Exception e)
+	    {
+		    Logger.LogCritical(e, nameof(ProcessFile));
+		    return WcxHead.Errors.E_BAD_DATA;
+	    }
 	    catch
 	    {
+		    Logger.LogCritical(nameof(ProcessFile) + ": Unknown exception");
 		    return WcxHead.Errors.E_BAD_DATA;
 	    }
     }
@@ -149,13 +207,23 @@ public static class WcxApi
         try
         {
             var state = ArchiveState.RestoreState(hArcData, out var gcHandle);
+            Logger.LogTrace("Closing archive, begin: Name = {FileName}", state.Archive.FileName);
+            
             state.Archive.Close();
             gcHandle.Free();
+            
+            Logger.LogTrace("Closing archive, completed: Name = {FileName}", state.Archive.FileName);
             return 0;
+        }
+        catch (Exception e)
+        {
+	        Logger.LogCritical(e, nameof(CloseArchive));
+            return WcxHead.Errors.E_BAD_DATA;
         }
         catch
         {
-            return WcxHead.Errors.E_BAD_DATA;
+	        Logger.LogCritical(nameof(CloseArchive)+ ": Unknown exception");
+	        return WcxHead.Errors.E_BAD_DATA;
         }
     }
     
@@ -163,6 +231,7 @@ public static class WcxApi
     [UnmanagedCallersOnly(EntryPoint = "SetChangeVolProc", CallConvs = new[] { typeof(CallConvStdcall) } )]
     public static int SetChangeVolProc(IntPtr hArcData, IntPtr pChangeVolProc1)
     {
+	    Logger.LogTrace(nameof(SetChangeVolProc));
         return WcxHead.Errors.E_NOT_SUPPORTED;
     }
     
@@ -170,6 +239,7 @@ public static class WcxApi
     [UnmanagedCallersOnly(EntryPoint = "SetProcessDataProc", CallConvs = new[] { typeof(CallConvStdcall) } )]
     public static int SetProcessDataProc(IntPtr hArcData, IntPtr pProcessDataProc)
     {
+	    Logger.LogTrace(nameof(SetProcessDataProc));
         return WcxHead.Errors.E_NOT_SUPPORTED;
     }
     
@@ -286,4 +356,21 @@ __stdcall int STDCALL
 		);
 
      */
+}
+
+public static class LogManager
+{
+	private static ILogger? _globalLogger;
+	private static ILoggerFactory? _loggerFactory;
+
+	public static void SetLoggerFactory(ILoggerFactory loggerFactory, string categoryName)
+	{
+		_loggerFactory = loggerFactory;
+		_globalLogger = loggerFactory.CreateLogger(categoryName);
+	}
+
+	public static ILogger? Logger => _globalLogger;
+
+	public static ILogger<T> GetLogger<T>() where T : class => (_loggerFactory ?? throw new InvalidOperationException()).CreateLogger<T>();
+	public static ILogger GetLogger(string categoryName) => (_loggerFactory ?? throw new InvalidOperationException()).CreateLogger(categoryName);
 }

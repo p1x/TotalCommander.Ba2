@@ -6,22 +6,17 @@ namespace P1X.TotalCommander.Ba2;
 
 public class ArchiveManager
 {
+    
     public ArchiveState? Open(string path)
     {
         Archive? archive = null;
         if (path.EndsWith("ba2", StringComparison.InvariantCultureIgnoreCase))
         {
             archive = new BA2(path);
-            File.AppendAllText("log.txt", "BA2 detected\r\n");
         }
         else if (path.EndsWith("bsa", StringComparison.InvariantCultureIgnoreCase))
         {
             archive = new BSA(path);
-            File.AppendAllText("log.txt", "BSA detected\r\n");
-        }
-        else
-        {
-            File.AppendAllText("log.txt", "Archive not detected\r\n");
         }
 
         return archive != null ? new ArchiveState(archive) : null;
@@ -29,15 +24,17 @@ public class ArchiveManager
     
     public bool ReadHeader(ArchiveState archiveState, out HeaderData data)
     {
-        var currentFileIndex = archiveState.CurrentFileIndex;
-        if (currentFileIndex >= archiveState.Archive.FileCount)
+        var nextFileIndex = archiveState.NextFileIndex;
+        if (nextFileIndex >= archiveState.Archive.FileCount)
         {
             data = default;
             return false;
         }
-
-        var archiveFile = archiveState.Archive.Files[currentFileIndex];
-        archiveState.CurrentFileIndex += 1;
+        
+        archiveState.CurrentFileIndex = archiveState.NextFileIndex;
+        
+        var archiveFile = archiveState.Archive.Files[archiveState.CurrentFileIndex];
+        archiveState.NextFileIndex += 1;
 
         data = new HeaderData(
             archiveFile.FullPath,

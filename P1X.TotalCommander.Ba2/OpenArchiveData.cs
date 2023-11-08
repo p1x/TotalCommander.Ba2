@@ -2,11 +2,18 @@
 
 namespace P1X.TotalCommander.Ba2;
 
-public unsafe struct OpenArchiveData(tOpenArchiveData* archiveData)
+public unsafe struct OpenArchiveData(tOpenArchiveData* archiveData, bool isWChar)
 {
     private string? _arcName;
     
-    public string? ArcName => _arcName ??= Marshal.PtrToStringAnsi(new IntPtr(archiveData->ArcName));
+    public string? ArcName
+    {
+        get
+        {
+            var ptr = new IntPtr(archiveData->ArcName);
+            return _arcName ??= isWChar ? Marshal.PtrToStringUni(ptr) : Marshal.PtrToStringAnsi(ptr);
+        }
+    }
 
     [JetBrains.Annotations.ValueProvider("P1X.TotalCommander.Ba2.WcxHead.Errors")]
     public int OpenResult

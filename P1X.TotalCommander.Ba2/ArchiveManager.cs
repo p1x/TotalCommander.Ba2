@@ -36,6 +36,8 @@ public class ArchiveManager(ILogger<ArchiveManager> logger)
         var state = readHeaderData.GetState();
         using var _ = logger.BeginScope("Archive state: Name = {FileName}, FileIndex = {Index}", state.Archive.FileName, state.CurrentFileIndex);
         
+        state.CurrentFileIndex += 1;
+
         var currentFileIndex = state.CurrentFileIndex;
         if (currentFileIndex >= state.Archive.FileCount)
         {
@@ -46,13 +48,12 @@ public class ArchiveManager(ILogger<ArchiveManager> logger)
         }
         
         var archiveFile = state.Archive.Files[state.CurrentFileIndex];
-        state.CurrentFileIndex += 1;
 
         data = new HeaderData(
             archiveFile.FullPath,
             state.Archive.LastWriteTime,
-            (int) archiveFile.RealSize,
-            (int) archiveFile.Size
+            archiveFile.RealSize,
+            archiveFile.Size
         );
         
         logger.LogTrace("Reading file completed: Name = {FileName}, Time = {FileTime}, Packed = {PackedSize}, Unpacked = {UnpackedSize}", data.FileName, data.FileTime, data.PackedSize, data.UnpackedSize);

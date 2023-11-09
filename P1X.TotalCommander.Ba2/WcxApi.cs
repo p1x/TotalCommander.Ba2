@@ -251,9 +251,20 @@ public static class WcxApi
     
     // void __stdcall SetProcessDataProc (HANDLE hArcData, tProcessDataProc pProcessDataProc);
     [UnmanagedCallersOnly(EntryPoint = "SetProcessDataProc", CallConvs = new[] { typeof(CallConvStdcall) } )]
-    public static int SetProcessDataProc(IntPtr hArcData, IntPtr pProcessDataProc)
+    public static unsafe int SetProcessDataProc(IntPtr hArcData, delegate* unmanaged[Stdcall] <byte*, int, int> pProcessDataProc)
     {
-	    Logger.LogTrace(nameof(SetProcessDataProc));
-        return WcxHead.Errors.E_NOT_SUPPORTED;
+	    try
+	    {
+		    var state = ArchiveState.FromPtr(hArcData, out _);
+
+		    state.ProcessDataProc = pProcessDataProc;
+		    
+		    return 0;
+	    }
+	    catch (Exception e)
+	    {
+		    Logger.LogCritical(e, nameof(SetProcessDataProc));
+		    return WcxHead.Errors.E_BAD_DATA;
+	    }
     }
 }

@@ -9,8 +9,8 @@
         <AssemblyName>TotalCommander.Ba2</AssemblyName>
         <Company>P1X</Company>
         <Product>TotalCommander.Ba2</Product>
-        <AssemblyVersion>0.1.0</AssemblyVersion>
-        <FileVersion>0.1.0</FileVersion>
+        <AssemblyVersion>0.2.0</AssemblyVersion>
+        <FileVersion>0.2.0</FileVersion>
     </PropertyGroup>
 
     <ItemGroup>
@@ -32,38 +32,7 @@
       <PackageReference Include="Microsoft.Extensions.Logging.Configuration" Version="8.0.0-rc.2.23479.6" />
       <PackageReference Include="Microsoft.Extensions.Logging.EventLog" Version="8.0.0-rc.2.23479.6" />
       <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0-rc.2.23479.6" />
-      <PackageReference Include="Sharp.BSA.BA2" Version="1.17.0" />
+      <PackageReference Include="Sharp.BSA.BA2" Version="1.18.0-beta" />
     </ItemGroup>
-
-    <!--<Target Name="Swig">
-        <PropertyGroup>
-            <SwigExe>$(NuGetPackageRoot)swigwintools\4.0.0\tools\swigwin-4.0.0\swig.exe</SwigExe>
-            <OutDir>$(SolutionDir)P1X.TotalCommander.Ba2\Generated\</OutDir>
-            <LogFilePath>$(SolutionDir)swig.log</LogFilePath>
-            <GeneratedDir>$([System.IO.Path]::GetDirectoryName('$(File)'))\Generated\</GeneratedDir>
-        </PropertyGroup>
-        <ItemGroup>
-            &lt;!&ndash; Define the files you want to copy &ndash;&gt;
-            <FilesToCopy Include="$(NuGetPackageRoot)swigwintools\**\*.exe" />
-
-            &lt;!&ndash; Define the destination folder (the 'bin' directory) &ndash;&gt;
-            <DestinationFolder Include="$(SolutionDir)packages\swigwintools\%(RecursiveDir)" />
-        </ItemGroup>
-
-        <Exec Command="$(SwigExe) -csharp -namespace P1X.TotalCommander.Ba2 -outdir $(GeneratedDir) $(File)"
-              ConsoleToMSBuild="true"
-              LogStandardErrorAsError="true"
-              WorkingDirectory="$(ProjectDir)"
-              IgnoreExitCode="false">
-            <Output TaskParameter="ConsoleOutput" PropertyName="OutputText" />
-        </Exec>
-
-        <Message Text="SWIG Output: $(OutputText)" Importance="High" />
-        <WriteLinesToFile File="$(LogFilePath)" Lines="$(OutputText)" Overwrite="true" />
-    </Target>
-    
-    <Target Name="RunSwigOnBuild" BeforeTargets="BeforeBuild" >
-        
-    </Target>-->
     
 </Project>

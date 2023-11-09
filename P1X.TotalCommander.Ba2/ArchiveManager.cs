@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging;
 using SharpBSABA2;
 using SharpBSABA2.BA2Util;
 using SharpBSABA2.BSAUtil;

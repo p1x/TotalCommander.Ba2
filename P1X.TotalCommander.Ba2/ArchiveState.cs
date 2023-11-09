@@ -5,6 +5,8 @@ namespace P1X.TotalCommander.Ba2;
 
 public class ArchiveState(Archive archive, bool isExtracting)
 {
+    public unsafe delegate* unmanaged[Stdcall] <byte*, int, int> ProcessDataProc { get; set; }
+    
     public Archive Archive { get; } = archive;
     public int CurrentFileIndex { get; set; } = -1;
     

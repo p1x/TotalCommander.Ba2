@@ -1,0 +1,7 @@
+[plugininstall]
+description=Bethesda BSA and BA2 archive unpacker
+type=wcx
+file=TotalCommander.Ba2.wcx
+defaultdir=TotalCommander.Ba2
+defaultextension=bsa,ba2
+version=0.3.0

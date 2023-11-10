@@ -1,42 +1,14 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Karambolo.Extensions.Logging.File;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace P1X.TotalCommander.Ba2;
 
 public static class WcxApi
 {
-
-    private static readonly ArchiveManager ArchiveManager;
-    private static readonly ILogger Logger;
-
-    static WcxApi()
-    {
-	    
-        var loggerFactory = LoggerFactory.Create(builder =>
-        {
-	        builder.ClearProviders();
-	        builder.SetMinimumLevel(LogLevel.Trace);
-	        builder.AddFile(options =>
-	        {
-		        options.RootPath = AppContext.BaseDirectory;
-		        options.IncludeScopes = true;
-		        options.Files = new[]
-		        {
-			        new LogFileOptions
-			        {
-				        Path = "TotalCommander.Ba2-<date>.log",
-			        }
-		        };
-	        });
-        });
-        
-        LogManager.SetLoggerFactory(loggerFactory, "Global");
-        
-        Logger = LogManager.GetLogger(nameof(WcxApi));
-        ArchiveManager = new ArchiveManager(LogManager.GetLogger<ArchiveManager>());
-    }
+    private static ArchiveManager? _archiveManager;
+    private static ILogger? _logger;
 
     /// <inheritdoc cref="OpenArchive"/>
     /// <summary>
@@ -69,12 +41,18 @@ public static class WcxApi
     {
 	    try
 	    {
-		    var state = ArchiveManager.Open(archiveData);
+		    if (_archiveManager == null)
+		    {
+			    archiveData.OpenResult = WcxHead.Errors.E_NOT_SUPPORTED;
+			    return IntPtr.Zero;
+		    }
+		    
+		    var state = _archiveManager.Open(archiveData);
 		    return state?.ToPtr(out _) ?? IntPtr.Zero;
 	    }
 	    catch (Exception e)
 	    {
-		    Logger.LogCritical(e, nameof(OpenArchive));
+		    _logger?.LogCritical(e, nameof(OpenArchive));
 		    archiveData.OpenResult = WcxHead.Errors.E_BAD_DATA;
 		    return IntPtr.Zero;
 	    }
@@ -94,7 +72,10 @@ public static class WcxApi
     {
 	    try
 	    {
-		    var result = ArchiveManager.ReadHeader(new ReadHeaderData(hArcData), out var data);
+		    if (_archiveManager == null)
+			    return WcxHead.Errors.E_NOT_SUPPORTED;
+		    
+		    var result = _archiveManager.ReadHeader(new ReadHeaderData(hArcData), out var data);
 		    if (result == 0) 
 			    data.FillNative(headerData);
 
@@ -102,7 +83,7 @@ public static class WcxApi
 	    }
 	    catch (Exception e)
 	    {
-		    Logger.LogCritical(e, nameof(ReadHeader));
+		    _logger?.LogCritical(e, nameof(ReadHeader));
 		    return WcxHead.Errors.E_BAD_DATA;
 	    }
     }
@@ -136,7 +117,10 @@ public static class WcxApi
     {
 	    try
 	    {
-		    var result = ArchiveManager.ReadHeader(readHeaderData, out var data);
+		    if (_archiveManager == null)
+			    return WcxHead.Errors.E_NOT_SUPPORTED;
+		    
+		    var result = _archiveManager.ReadHeader(readHeaderData, out var data);
 		    if (result != 0) 
 			    return result;
 		    
@@ -149,7 +133,7 @@ public static class WcxApi
 	    }
 	    catch (Exception e)
 	    {
-		    Logger.LogCritical(e, nameof(ReadHeaderEx));
+		    _logger?.LogCritical(e, nameof(ReadHeaderEx));
 		    return WcxHead.Errors.E_BAD_DATA;
 	    }
     }
@@ -203,11 +187,14 @@ public static class WcxApi
     {
 	    try
 	    {
-		    return ArchiveManager.ProcessFile(processFileData, operation);
+		    if (_archiveManager == null)
+			    return WcxHead.Errors.E_NOT_SUPPORTED;
+		    
+		    return _archiveManager.ProcessFile(processFileData, operation);
 	    }
 	    catch (Exception e)
 	    {
-		    Logger.LogCritical(e, nameof(ProcessFileA));
+		    _logger?.LogCritical(e, nameof(ProcessFileA));
 		    return WcxHead.Errors.E_BAD_DATA;
 	    }
     }
@@ -226,12 +213,15 @@ public static class WcxApi
 	    GCHandle gcHandle = default;
 	    try
 	    {
-		    ArchiveManager.Close(ArchiveState.FromPtr(hArcData, out gcHandle));
+		    if (_archiveManager == null)
+			    return WcxHead.Errors.E_NOT_SUPPORTED;
+		    
+		    _archiveManager.Close(ArchiveState.FromPtr(hArcData, out gcHandle));
 		    return 0;
 	    }
         catch (Exception e)
         {
-	        Logger.LogCritical(e, nameof(CloseArchive));
+	        _logger?.LogCritical(e, nameof(CloseArchive));
             return WcxHead.Errors.E_BAD_DATA;
         }
 	    finally
@@ -245,7 +235,7 @@ public static class WcxApi
     [UnmanagedCallersOnly(EntryPoint = "SetChangeVolProc", CallConvs = new[] { typeof(CallConvStdcall) } )]
     public static int SetChangeVolProc(IntPtr hArcData, IntPtr pChangeVolProc1)
     {
-	    Logger.LogTrace(nameof(SetChangeVolProc));
+	    _logger?.LogTrace(nameof(SetChangeVolProc));
         return WcxHead.Errors.E_NOT_SUPPORTED;
     }
     
@@ -263,8 +253,65 @@ public static class WcxApi
 	    }
 	    catch (Exception e)
 	    {
-		    Logger.LogCritical(e, nameof(SetProcessDataProc));
+		    _logger?.LogCritical(e, nameof(SetProcessDataProc));
 		    return WcxHead.Errors.E_BAD_DATA;
 	    }
+    }
+
+    /// <summary>
+    /// PackSetDefaultParams is called immediately after loading the DLL, before any other function. This function is new in version 2.1. It requires Total Commander >=5.51, but is ignored by older versions.
+    /// <code>void __stdcall PackSetDefaultParams(PackDefaultParamStruct* dps);</code>
+    /// </summary>
+    /// <param name="dps">this structure of type PackDefaultParamStruct currently contains the version number of the plugin interface, and the suggested location for the settings file (ini file). It is recommended to store any plugin-specific information either directly in that file, or in that directory under a different name. Make sure to use a unique header when storing data in this file, because it is shared by other file system plugins! If your plugin needs more than 1kbyte of data, you should use your own ini file because ini files are limited to 64k.</param>
+    /// <remarks>This function is only called in Total Commander 5.51 and later. The plugin version will be >= 2.1.</remarks>
+    [UnmanagedCallersOnly(EntryPoint = "PackSetDefaultParams", CallConvs = new[] { typeof(CallConvStdcall) })]
+    public static unsafe void PackSetDefaultParams(PackDefaultParamStruct* dps)
+    {
+	    try
+	    {
+		    var defaultIniName = Marshal.PtrToStringAnsi(new IntPtr(dps->DefaultIniName));
+		    if (defaultIniName == null)
+			    return;
+
+		    var (logLevel, logName) = LoadSettings(defaultIniName);
+		    var loggerFactory = LoggerFactory.Create(builder =>
+		    {
+			    builder.ClearProviders();
+			    builder.SetMinimumLevel(logLevel);
+
+			    if (!string.IsNullOrEmpty(logName) && logLevel < LogLevel.None)
+			    {
+				    builder.AddProvider(new FileLoggerProvider(new FileLoggerConfiguration
+				    {
+					    LogLevel = logLevel,
+					    FilePath = Path.Combine(AppContext.BaseDirectory, logName)
+				    }));
+			    }
+		    });
+
+		    LogManager.SetLoggerFactory(loggerFactory, "Global");
+		    _logger = LogManager.GetLogger(nameof(WcxApi));
+		    
+		    _archiveManager = new ArchiveManager(LogManager.GetLogger<ArchiveManager>());
+		    _logger.LogInformation("Initialized");
+	    }
+	    catch (Exception e)
+	    {
+		    _logger?.LogCritical(e, nameof(PackSetDefaultParams));
+	    }
+    }
+
+    private static (LogLevel logLevel, string? logName) LoadSettings(string defaultIniName)
+    {
+	    if (!File.Exists(defaultIniName)) 
+		    return (LogLevel.None, null);
+	    
+	    using var fileStream = File.OpenRead(defaultIniName);
+	    var configurationRoot = new ConfigurationBuilder().AddIniStream(fileStream).Build();
+
+	    var logLevelStr = configurationRoot["TotalCommander.Ba2:LogLevel"];
+	    var logLevel = Enum.TryParse(logLevelStr, out LogLevel l) ? l : LogLevel.None;
+	    var logName = configurationRoot["TotalCommander.Ba2:LogName"];
+	    return (logLevel, logName);
     }
 }

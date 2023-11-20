@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+﻿using DirectXTex;
 using Microsoft.Extensions.Logging;
 using SharpBSABA2;
 using SharpBSABA2.BA2Util;
@@ -92,6 +92,8 @@ public class ArchiveManager(ILogger<ArchiveManager> logger)
                 var dir = Path.GetDirectoryName(destPathFull);
                 var fileName = Path.GetFileName(destPathFull);
                 entry.Extract(dir, false, fileName);
+                if (entry is BA2TextureEntry texEntry) 
+                    texEntry.DDSFlags = DirectXTexUtility.DDSFlags.NONE;
 
                 logger.LogTrace("Unpacking complete: Dir = {Directory}, File = {FileName}", dir, fileName);
                 return 0;
